@@ -85,7 +85,7 @@ def mapping_building(file_buildingjson: str) -> BBuilding:
                         ],
                     )
                     _elements.append(build_element)
-                except JsonParseError:
+                except (JsonParseError, KeyError):
                     bad_elements.append((_sign, element["Name"], element["Id"], level["ZLevel"]))
 
             _levels.append(BLevel(name=level["NameLevel"], zlevel=level["ZLevel"], elements=_elements))

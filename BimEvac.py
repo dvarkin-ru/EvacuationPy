@@ -140,6 +140,7 @@ class Moving(object):
             z.is_visited = False
 
         zones_to_process: Set[Zone] = set([bim.safety_zone])
+        bim.zones[bim.safety_zone.id].is_visited = True
         self._step_counter[1] = 0
 
         while len(zones_to_process) > 0:
@@ -156,6 +157,7 @@ class Moving(object):
 
                 # giving_zone.potential = self.potential(receiving_zone, giving_zone, transit.width)
                 moved_people = self.part_of_people_flow(receiving_zone, giving_zone, transit)
+                # print(giving_zone.num_of_people, receiving_zone.num_of_people, moved_people)
 
                 receiving_zone.num_of_people += moved_people
                 try:
@@ -358,11 +360,11 @@ if __name__ == "__main__":
     from BimComplexity import BimComplexity
 
     # building = BimDataModel.mapping_building('resources/example-one-exit.json')
-    building = BimDataModel.mapping_building("resources/example-two-exits.json")
+    building = BimDataModel.mapping_building("resources/disbuild.json")
     # TODO: replace absolute path to relative
-    building = BimDataModel.mapping_building(
-        r"/home/boris/Documents/teaching/УдГУ/Рабочие_программы/2022-2023/Прототипирование СБ 1 курс/qgis/Тестовые задачи/test01/test01.2.json"
-    )
+##    building = BimDataModel.mapping_building(
+##        r"/home/boris/Documents/teaching/УдГУ/Рабочие_программы/2022-2023/Прототипирование СБ 1 курс/qgis/Тестовые задачи/test01/test01.2.json"
+##    )
     # building = BimDataModel.mapping_building('resources/building_example.json')
 
     bim = Bim(building)
@@ -373,8 +375,8 @@ if __name__ == "__main__":
     wo_safety = list(filter(lambda x: not (x.id == bim.safety_zone.id), bim.zones.values()))
 
     # Doors width
-    for t in bim.transits.values():
-        t.width = 2.0
+    #for t in bim.transits.values():
+        #t.width = 2.0
         # print(f"{t.name} -- {t.width}")
 
     density = 1.0
@@ -383,15 +385,20 @@ if __name__ == "__main__":
     #     # if '7e466' in str(z.id) or '02707' in str(z.id):
     #     z.num_of_people = density * z.area
 
-    D = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]  # м2/м2 # pyright: ignore [reportConstantRedefinition]
-    T = [15.0, 20.0, 25.5, 30.0, 36.4, 42.9, 52.2, 63.2, 80.0]  # сек.
+    D = [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4]  # м2/м2 # pyright: ignore [reportConstantRedefinition]
+    # T = [15.0, 20.0, 25.5, 30.0, 36.4, 42.9, 52.2, 63.2, 80.0]  # сек.
+    # T_c  = [18.6, 24.0, 29.4, 35.4, 42.6, 50.4, 58.2, 66.6, 74.4]
+    # T_c_3 = [886.8, 1748.4, 2602.2, 3432.0, 4229.4, 5074.2, 5919.0, 6764.4, 7609.8]
+    T = [55,  60,  65,  70,  75,  80,  85,  90,  95,  100, 105, 110, 115]
+    T_c_dis = [177.00, 193.80, 210.00, 225.00, 237.60, 249.60, 262.20, 274.20, 285.00, 297.00, 307.80, 318.00, 329.40]
 
     times: List[float] = []  # сек.
 
     for density in D:
         m = Moving()
 
-        bim.set_density(m.pfv.to_pm2(density))
+        bim.set_density(density)
+        bim.safety_zone.num_of_people = 0.0
 
         num_of_people = 0.0
         for z in wo_safety:
@@ -404,10 +411,10 @@ if __name__ == "__main__":
         time = 0.0
         for _ in range(10000):
             m.step(bim)
-            print(m.direction_pairs)
+            # print(m.direction_pairs)
             time += Moving.MODELLING_STEP
-            # for z in bim.zones.values():
-            #     print(f"{z}, Potential: {z.potential}, Number of people: {z.num_of_people}")
+            #for z in bim.zones.values():
+                #print(f"{z}, Number of people: {z.num_of_people}")
             for t in bim.transits.values():
                 if t.sign == BSign.DoorWayOut:
                     pass
@@ -424,24 +431,31 @@ if __name__ == "__main__":
 
         print(f"Количество человек: {num_of_people:.{4}} Длительность эвакуации: {time*60:.{4}} с. ({time:.{4}} мин.)")
         nop = sum([x.num_of_people for x in wo_safety if x.is_visited])
-        times.append(round(time * 60, 1))
-        # print("========", nop, bim.safety_zone.num_of_people)
+        times.append(time * 60)
+        print("========", nop, bim.safety_zone.num_of_people)
 
     print(D)
     print(T)
     print(times)
 
-    p: List[float] = []
-    for i in range(len(T)):
-        p.append(round(T[i] / times[i], 2))
-
-    print(p)
+    #p: List[float] = []
+    #for i in range(len(T)):
+    #    p.append(round(T_c[i] / times[i], 2))
+#
+    #print(p)
 
     # plot
     fig, ax = plt.subplots()  # pyright: ignore [reportUnknownMemberType, reportUnknownVariableType]
 
-    ax.plot(D, T, linewidth=2.0, label="Original")  # pyright: ignore [reportUnknownMemberType, reportGeneralTypeIssues]
-    ax.plot(D, times, linewidth=2.0, label="My")  # pyright: ignore [reportUnknownMemberType, reportGeneralTypeIssues]
+    #ax.plot(D, T, linewidth=2.0, label="Original")  # pyright: ignore [reportUnknownMemberType, reportGeneralTypeIssues]
+    ax.plot(D, T_c_dis, linewidth=2.0, label="EvacuationC")  # pyright: ignore
+    ax.plot(D, times, linewidth=2.0, label="EvacuationPy")  # pyright: ignore [reportUnknownMemberType, reportGeneralTypeIssues]
+    ax.plot(D, T, linewidth=2.0, label="Рис. 3.23 линия 2")  # pyright: ignore
+
+    #plt.ylim([0, 80])
+    plt.xlim([0.2, 1.4])
+    plt.xticks(D) 
+    plt.grid(True)
 
     # Adding legend, which helps us recognize the curve according to it's color
     plt.legend()  # pyright: ignore [reportUnknownMemberType]
