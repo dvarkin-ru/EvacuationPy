@@ -2,7 +2,6 @@ from dataclasses import dataclass
 
 from typing import Union, Tuple, List, Dict
 from uuid import UUID
-import tripy
 import math
 from BimDataModel import BBuilding, BBuildElement, BPoint, BSign, mapping_building
 
@@ -207,9 +206,8 @@ class Transit(BBuildElement):
 
         transit_points = _repack_points(self.points)
         zone_points = _repack_points(zone_element.points)
-        zone_tri: Triangles = tripy.earclip(zone_points)
 
-        edge_points = [i for i, p in enumerate(transit_points) if self._point_in_polygon(p, zone_tri)]
+        edge_points = [i for i, p in enumerate(transit_points) if self._point_in_polygon(p, zone_points)]
         edge_points.sort(reverse=True)
 
         if not (len(edge_points) == 2):
@@ -229,52 +227,23 @@ class Transit(BBuildElement):
         te = TransitEdges(parallel, normal)
         return te
 
-    def _point_in_polygon(self, point: Point2D, zone_tri: Triangles) -> bool:
+    def _point_in_polygon(self, point: Point2D, zone_points: List[Point2D]) -> bool:
         """
         Проверка вхождения точки в прямоугольник
-
-        Для этого произвоится треангуляция прямоугольника. В данном случае треангуляция осуществляется вручную,
-        потому что нам известно, что каждое помещение представляет прямоугольником.
-        После получения треугольников поподает ли точка в треугольник, для чего выполняется проверка
-        с какой стороны от стороны треугольника находится точка.
         """
+        def length_side(p1, p2):
+            return math.sqrt(math.pow(p1[0] - p2[0], 2) + math.pow(p1[1] - p2[1], 2))
 
-        def where_point(a: Point2D, b: Point2D, p: Point2D) -> int:
-            """
-            Проверка с какой стороны находится точка \n
-            a, b, p - точки, представленные массивом [x, y] \n
-            ab - вектор \n
-            p - точка
-            """
-            s = (b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0])
-            if s > 0:
-                return 1  # Точка слева от вектора AB
-            elif s < 0:
-                return -1  # Точка справа от вектора AB
-            else:
-                return 0  # Точка на векторе, прямо по вектору или сзади вектора
+        def on_segment(p1, p2, p3):
+            return length_side(p1, p2) + length_side(p2, p3) == length_side(p1, p3)
 
-        def is_point_in_triangle(triangle: Triangle, p: Point2D) -> bool:
-            """
-            Проверка попадания точки в треугольник \n
-            triangle - треугольник, представленный массивом [[x, y], [x, y], [x, y]] \n
-            p - точка, представленная массивом [x, y] \n
-            """
-            q1 = where_point(triangle[0], triangle[1], p)
-            q2 = where_point(triangle[1], triangle[2], p)
-            q3 = where_point(triangle[2], triangle[0], p)
-            return q1 >= 0 and q2 >= 0 and q3 >= 0
-
-        """
-        Проверяем в какие треугольники попадает точка
-        """
-        for tr in zone_tri:
-            if is_point_in_triangle((tr[0], tr[1], tr[2]), point):
-                break
-        else:  # В это условие попадаем, если прошли цикл
-            return False
-
-        return True
+        c = False
+        for p1, p2 in zip(zone_points, zone_points[1:]+zone_points[:1]):
+            if (on_segment(p1, point, p2)):
+                return True
+            if ( ((p1[1] > point[1]) != (p2[1]>point[1])) and (point[0] < (p2[0]-p1[0]) * (point[1]-p1[1]) / (p2[1]-p1[1]) + p1[0]) ):
+                c = not c
+        return c
 
     def _door_way_width(self, zone_element1: BBuildElement, zone_element2: BBuildElement) -> float:
         """
@@ -418,11 +387,8 @@ class Zone(BBuildElement):
         return self._area
 
     def _calculate_area(self):
-        def triangle_area(p1: Point2D, p2: Point2D, p3: Point2D) -> float:
-            return abs(0.5 * ((p2[0] - p1[0]) * (p3[1] - p1[1]) - (p3[0] - p1[0]) * (p2[1] - p1[1])))
-
-        self._tri: Triangles = tripy.earclip([(p.x, p.y) for p in self.points[:-1]])
-        self._area = round(sum(triangle_area(tr[0], tr[1], tr[2]) for tr in self._tri), NDIGITS)
+        xy = self.points[:-1]
+        self._area = math.fabs(0.5*sum((p1.x*p2.y-p2.x*p1.y for p1,p2 in zip(xy, xy[1:]+xy[:1]))))
 
     @property
     def num_of_people(self) -> float:
